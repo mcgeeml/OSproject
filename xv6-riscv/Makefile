@@ -137,6 +137,7 @@ UPROGS=\
 	$U/_warmup\
 	$U/_arraylist\
 	$U/_find\
+	$U/_xv6test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -89,3 +89,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_pthread_create_call(void){
+  uint64 addr;
+  argaddr(0, &addr);
+  return pthread_create_call(0, 0, (void*)addr);
+}

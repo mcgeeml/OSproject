@@ -681,3 +681,9 @@ procdump(void)
     printf("\n");
   }
 }
+
+int pthread_create_call(int addy, void *func, void *args)
+{
+ printf("Inside pthread create call %p\n", args);
+ return 0;
+}
