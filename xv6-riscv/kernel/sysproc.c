@@ -91,8 +91,9 @@ sys_uptime(void)
 }
 
 uint64
-sys_pthread_create_call(void){
+sys_pthread_create_call(int threads, void* func, void* args){
   uint64 addr;
   argaddr(0, &addr);
-  return pthread_create_call(0, 0, (void*)addr);
+  printf("system call has been called. func: %p. args: %p\n", func, args);
+  return pthread_create_call(threads, func, (void*)addr);
 }

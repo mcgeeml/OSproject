@@ -684,6 +684,63 @@ procdump(void)
 
 int pthread_create_call(int addy, void *func, void *args)
 {
- printf("Inside pthread create call %p\n", args);
- return 0;
+  int i;// pid;
+  struct proc *info;
+  struct proc *p = myproc();
+
+  // Allocate process.
+  if((info = allocproc()) == 0){
+    return -1;
+  }
+
+  //printf("I MADE IT PAST ALLOCPROC\n");
+
+  // Copy user memory from parent to child.
+  if(uvmcopy(p->pagetable, info->pagetable, p->sz) < 0){
+    freeproc(info);
+    release(&info->lock);
+    return -1;
+  }
+  info->sz = p->sz;
+
+// printf("PAGETABLE ALLOCATED\n");
+
+  // copy saved user registers.
+  *(info->trapframe) = *(p->trapframe); // supposed to do something after this line
+
+  // Cause fork to return 0 in the child.
+  //info->trapframe->a0 = 0;
+  info->trapframe->epc = (long unsigned int) func;
+
+  //printf("EPC IS: %p\n", info->trapframe->epc);
+
+  // increment reference counts on open file descriptors.
+
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      info->ofile[i] = filedup(p->ofile[i]);
+
+  info->cwd = idup(p->cwd);
+
+  safestrcpy(info->name, p->name, sizeof(p->name));
+
+//  printf("I COPIED INFORMATION\n");
+
+  //pid = info->pid;
+  printf("%p\n", __builtin_return_address(0));
+//  dump_stack();
+  release(&info->lock);
+
+  //lineage of parent and child
+  acquire(&wait_lock);
+  info->parent = p;
+  release(&wait_lock);
+
+  acquire(&info->lock);
+  info->state = RUNNABLE;
+  release(&info->lock);
+
+  //return pid;
+  printf("Inside pthread create call %p\n", args);
+  return 0;
 }
