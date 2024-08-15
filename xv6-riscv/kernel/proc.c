@@ -682,9 +682,11 @@ procdump(void)
   }
 }
 
+extern int uvmthread(pagetable_t, pagetable_t, uint64);
+
 int pthread_create_call(int addy, void *func, void *args)
 {
-  int i;// pid;
+  int i;
   struct proc *info;
   struct proc *p = myproc();
 
@@ -693,17 +695,13 @@ int pthread_create_call(int addy, void *func, void *args)
     return -1;
   }
 
-  //printf("I MADE IT PAST ALLOCPROC\n");
-
-  // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, info->pagetable, p->sz) < 0){
+  // share user memory from parent to child.
+  if(uvmthread(p->pagetable, info->pagetable, p->sz) < 0){
     freeproc(info);
     release(&info->lock);
     return -1;
   }
   info->sz = p->sz;
-
-// printf("PAGETABLE ALLOCATED\n");
 
   // copy saved user registers.
   *(info->trapframe) = *(p->trapframe); // supposed to do something after this line
@@ -712,10 +710,7 @@ int pthread_create_call(int addy, void *func, void *args)
   //info->trapframe->a0 = 0;
   info->trapframe->epc = (long unsigned int) func;
 
-  //printf("EPC IS: %p\n", info->trapframe->epc);
-
   // increment reference counts on open file descriptors.
-
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       info->ofile[i] = filedup(p->ofile[i]);
@@ -724,11 +719,7 @@ int pthread_create_call(int addy, void *func, void *args)
 
   safestrcpy(info->name, p->name, sizeof(p->name));
 
-//  printf("I COPIED INFORMATION\n");
-
-  //pid = info->pid;
   printf("%p\n", __builtin_return_address(0));
-//  dump_stack();
   release(&info->lock);
 
   //lineage of parent and child
@@ -740,7 +731,50 @@ int pthread_create_call(int addy, void *func, void *args)
   info->state = RUNNABLE;
   release(&info->lock);
 
-  //return pid;
-  printf("Inside pthread create call %p\n", args);
   return 0;
+}
+
+int thread_join(void *arg){
+  struct proc *pp;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(pp = proc; pp < &proc[NPROC]; pp++){
+      if(pp->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&pp->lock);
+
+        havekids = 1;
+        if(pp->state == ZOMBIE){
+          // Found one.
+          pid = pp->pid;
+          if((long unsigned int)arg != 0 && copyout(p->pagetable, (long unsigned int)arg, (char *)&pp->xstate,
+                                  sizeof(pp->xstate)) < 0) {
+            release(&pp->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          freeproc(pp);
+          release(&pp->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&pp->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || killed(p)){
+      release(&wait_lock);
+      return -1;
+    }
+
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
 }

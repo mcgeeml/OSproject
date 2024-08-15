@@ -94,6 +94,12 @@ uint64
 sys_pthread_create_call(int threads, void* func, void* args){
   uint64 addr;
   argaddr(0, &addr);
-  printf("system call has been called. func: %p. args: %p\n", func, args);
   return pthread_create_call(threads, func, (void*)addr);
+}
+
+uint64
+sys_thread_join(void){
+  uint64 p;
+  argaddr(0, &p);
+  return thread_join((void*)p);
 }

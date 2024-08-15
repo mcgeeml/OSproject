@@ -1,5 +1,4 @@
 //Hello there -obi one
-
 void create_thread(int addy, void func, void arg){
   int funcAddy = &func;
 

@@ -14,6 +14,9 @@ void freerange(void *pa_start, void *pa_end);
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
+int reference[(PHYSTOP-KERNBASE)/PGSIZE];
+#define FRIENDEX(pa) ((uint64)pa - KERNBASE)/PGSIZE
+
 struct run {
   struct run *next;
 };
@@ -22,6 +25,13 @@ struct {
   struct spinlock lock;
   struct run *freelist;
 } kmem;
+
+void incrementReference(uint64 pa){
+  acquire(&kmem.lock);
+  int index = FRIENDEX(pa);
+  reference[index] = reference[index]+1;
+  release(&kmem.lock);
+}
 
 void
 kinit()
@@ -51,6 +61,15 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  acquire(&kmem.lock);
+  int index = FRIENDEX(pa);
+  reference[index] = reference[index]-1;
+
+  if(reference[index]>0){
+    release(&kmem.lock);
+    return;
+  }
+  release(&kmem.lock);
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -72,8 +91,11 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+    int index = FRIENDEX(r);
+    reference[index] = 1;
+  }
   release(&kmem.lock);
 
   if(r)
