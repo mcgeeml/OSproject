@@ -777,4 +777,6 @@ int thread_join(void *arg){
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
+
+  return 0;
 }
